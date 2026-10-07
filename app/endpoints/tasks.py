@@ -19,7 +19,6 @@ class StatusUpdate(BaseModel):
 
 
 async def check_active_tasks_limit(session: AsyncSession, assignee_id: int):
-    # Ліміт: не більше 10 активних задач (Backlog, In Progress, Review)
     active_statuses = [TaskStatus.BACKLOG, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW]
     result = await session.execute(
         select(func.count(Task.id))
@@ -69,8 +68,6 @@ async def get_tasks(
     current_user: User = Depends(get_current_user),
 ):
     query = select(Task)
-
-    # 1. Пошук за назвою та описом
     if search:
         query = query.where(
             or_(
@@ -79,7 +76,6 @@ async def get_tasks(
             )
         )
 
-    # 2. Фільтрація
     if status:
         query = query.where(Task.status == status)
     if priority:
@@ -89,7 +85,6 @@ async def get_tasks(
     if deadline_before:
         query = query.where(Task.deadline <= deadline_before)
 
-    # 3. Вага пріоритету для сортування (High -> Medium -> Low)
     priority_order = case(
         (Task.priority == TaskPriority.HIGH, 1),
         (Task.priority == TaskPriority.MEDIUM, 2),
@@ -97,7 +92,6 @@ async def get_tasks(
         else_=4,
     )
 
-    # 4. Сортування
     if sort_by == "created_at":
         col = Task.created_at.desc() if sort_order == "desc" else Task.created_at.asc()
         query = query.order_by(col)
@@ -111,7 +105,7 @@ async def get_tasks(
         # Дефолтне сортування: High -> Medium -> Low, а потім найближчий дедлайн
         query = query.order_by(priority_order.asc(), Task.deadline.asc().nulls_last())
 
-    # 5. Пагінація
+
     query = query.offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
